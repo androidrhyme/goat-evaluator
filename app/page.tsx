@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Slider } from "../components/ui/slider";
+import { Slider } from "../../components/ui/slider";
 import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { Circle } from "lucide-react";
 
@@ -149,6 +149,11 @@ export default function GOATModel() {
         <div className="space-y-4">
           {CRITERIA.map((label, i) => (
             <div key={i}>
+              {label === "Accolades" && (
+                <p className="text-sm text-muted-foreground mb-1">
+                  Accolades - Personal awards (MVPs, FMVPs, All-NBA, Scoring Titles, etc.)
+                </p>
+              )}
               <label className="block font-medium mb-1">{label}: {Math.round(weights[i])}</label>
               <Slider
                 value={[weights[i]]}

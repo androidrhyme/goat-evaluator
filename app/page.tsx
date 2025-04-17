@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Slider } from "../../components/ui/slider";
+import { Slider } from "../components/ui/slider";
 import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { Circle } from "lucide-react";
 
@@ -98,6 +98,19 @@ export default function GOATModel() {
     return Math.max(0, score - penalty);
   };
 
+    const descriptions: Record<string, string> = {
+    "Prime": "Player performance in all the years he was at an elite level (example: Kobe Bryant 2001-2013)",
+    "Peak": "Player performance in the 2-3 consecutive seasons where he was at his best (example: Kobe Bryant 2007-2009)",
+    "Leaderboards": "Placement in career box score stat totals like points, rebounds, and assists",
+    "Two-Way": "Balance of elite-level offense and elite-level defense",
+    "Playoff Rise": "The ability to <i>increase</i> performance from the regular season into the postseason",
+    "Regular Season Winning": "Team success during the regular season through the player’s prime years",
+    "Postseason Winning": "Team success in the postseason through the player’s career",
+    "Versatility": "Ability to score in multiple ways, rebound, pass, and defend in multiple ways",
+    "Cultural Impact": "Influence on the sport or public",
+    "Artistry": "Play style that is exceptionally creative or aesthetically pleasing"
+  };
+
     return (
     <div className="p-6 max-w-3xl mx-auto space-y-8">
       <h1 className="text-3xl font-bold">Build Your Model for the GOAT NBA Player</h1>
@@ -126,7 +139,7 @@ export default function GOATModel() {
         <p className="text-sm text-muted-foreground">
           This is purely a measure of a player’s production and ability to increase the chances of winning. A win or an MVP does not influence the evaluation of a player’s performance. We don’t have the luxury of the “eye test” in this statistical assessment, so choose which numbers you want to consider.
         </p>
-        <p>Regular Season vs. Postseason</p>
+        <p className="mt-6">Regular Season vs. Postseason</p>
         <Slider value={[rsPsSplit]} onValueChange={([v]) => setRsPsSplit(v)} {...SLIDER_PROPS} />
         <div className="mt-2 mb-4 flex justify-between text-sm">
   <span>Regular Season</span>
@@ -134,7 +147,7 @@ export default function GOATModel() {
   <span>Postseason</span>
 </div>
 
-        <p className="mt-4">Traditional Box Score vs. Advanced Statistics</p>
+        <p className="mt-6">Traditional Box Score vs. Advanced Statistics</p>
         <Slider value={[tradAdvSplit]} onValueChange={([v]) => setTradAdvSplit(v)} {...SLIDER_PROPS} />
         <div className="mt-2 mb-4 flex justify-between text-sm">
   <span>Traditional</span>
@@ -145,16 +158,21 @@ export default function GOATModel() {
 
       <section>
         <h2 className="text-xl font-semibold">3. Build Your Model</h2>
-        <p>Distribute 100 points across the following criteria:</p>
-        <div className="space-y-4">
+        <p className="text-sm text-muted-foreground mb-4">
+          Distribute 100 points across the following criteria:
+        </p>
+        <div className="space-y-6">
           {CRITERIA.map((label, i) => (
             <div key={i}>
-              {label === "Accolades" && (
+              <h3 className="text-base font-semibold">{label}: {Math.round(weights[i])}</h3>
+              {(label === "Accolades") && (
                 <p className="text-sm text-muted-foreground mb-1">
-                  Accolades - Personal awards (MVPs, FMVPs, All-NBA, Scoring Titles, etc.)
+                  Personal awards (MVPs, FMVPs, All-NBA, Scoring Titles, etc.)
                 </p>
               )}
-              <label className="block font-medium mb-1">{label}: {Math.round(weights[i])}</label>
+              {descriptions[label] && label !== "Accolades" && (
+                <p className="text-sm text-muted-foreground mb-1" dangerouslySetInnerHTML={{ __html: descriptions[label] }} />
+              )}
               <Slider
                 value={[weights[i]]}
                 onValueChange={([v]) => handleSliderChange(i, v)}

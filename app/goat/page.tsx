@@ -31,6 +31,15 @@ const SLIDER_PROPS = {
   renderThumb: () => <Circle size={16} className="text-white" />
 };
 
+type ScoreInput =
+  | number
+  | {
+      RS?: number;
+      PS?: number;
+      Trad?: number;
+      Adv?: number;
+    };
+
 export default function GOATModel() {
   const [weights, setWeights] = useState(CRITERIA.map(() => 100 / CRITERIA.length));
   const [eraWeight, setEraWeight] = useState(1.0);
@@ -65,16 +74,14 @@ export default function GOATModel() {
 
   const pieData = CRITERIA.map((c, i) => ({ name: c, value: weights[i] }));
 
-  const getScore = (input, context = {}) => {
+  const getScore = (input: ScoreInput, context: { CORP?: number; Lng?: number } = {}) => {
     if (typeof input === "number") return input;
 
     if (input.RS !== undefined && input.PS !== undefined && input.Trad === undefined) {
-      // Prime: Box Score only
       return (input.RS * (100 - rsPsSplit) + input.PS * rsPsSplit) / 100;
     }
 
     if (input.Trad !== undefined && input.Adv !== undefined) {
-      // Advanced prime includes RS/PS + CORP and Longevity
       const baseAdv = (input.Trad * (100 - rsPsSplit) + input.Adv * rsPsSplit) / 100;
       const corp = context.CORP || 0;
       const lng = context.Lng || 0;
@@ -152,10 +159,6 @@ export default function GOATModel() {
           ))}
         </div>
       </section>
-
-      
-
-      
     </div>
   );
 }

@@ -1,103 +1,164 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import React, { useState, useMemo } from "react";
+import { Slider } from "../components/ui/slider";
+import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
+import { Circle } from "lucide-react";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+const CRITERIA = [
+  "Accolades",
+  "Prime",
+  "Peak",
+  "Leaderboards",
+  "Two-Way",
+  "Playoff Rise",
+  "Regular Season Winning",
+  "Postseason Winning",
+  "Versatility",
+  "Cultural Impact",
+  "Artistry"
+];
+
+const COLORS = [
+  "#8884d8", "#8dd1e1", "#82ca9d", "#a4de6c", "#d0ed57", "#ffc658",
+  "#ff8042", "#d0ed57", "#a28fd0", "#ff9999", "#99ccff"
+];
+
+const SLIDER_PROPS = {
+  max: 100,
+  step: 1,
+  thumbClassName: "w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center",
+  renderThumb: () => <Circle size={16} className="text-white" />
+};
+
+type ScoreInput =
+  | number
+  | {
+      RS?: number;
+      PS?: number;
+      Trad?: number;
+      Adv?: number;
+    };
+
+export default function GOATModel() {
+  const [weights, setWeights] = useState(CRITERIA.map(() => 100 / CRITERIA.length));
+  const [eraWeight, setEraWeight] = useState(1.0);
+  const [rsPsSplit, setRsPsSplit] = useState(50);
+  const [tradAdvSplit, setTradAdvSplit] = useState(50);
+
+  const handleSliderChange = (changedIndex: number, newValue: number) => {
+    let newWeights = [...weights];
+    newWeights[changedIndex] = newValue;
+    const total = newWeights.reduce((a, b) => a + b, 0);
+    let overflow = total - 100;
+
+    const others = newWeights.map((val, i) => ({ i, val }))
+      .filter(({ i, val }) => i !== changedIndex && val > 0);
+
+    const totalAvailable = others.reduce((sum, o) => sum + o.val, 0);
+
+    for (let { i, val } of others) {
+      if (overflow === 0) break;
+      const share = (val / totalAvailable) * overflow;
+      const adjustment = Math.min(val, share);
+      newWeights[i] = Math.max(0, newWeights[i] - adjustment);
+      overflow -= adjustment;
+    }
+
+    const clamped = newWeights.map(v => Math.max(0, Math.round(v)));
+    const fix = 100 - clamped.reduce((a, b) => a + b, 0);
+    clamped[changedIndex] += fix;
+
+    setWeights(clamped);
+  };
+
+  const pieData = CRITERIA.map((c, i) => ({ name: c, value: weights[i] }));
+
+  const getScore = (input: ScoreInput, context: { CORP?: number; Lng?: number } = {}) => {
+    if (typeof input === "number") return input;
+
+    if (input.RS !== undefined && input.PS !== undefined && input.Trad === undefined) {
+      return (input.RS * (100 - rsPsSplit) + input.PS * rsPsSplit) / 100;
+    }
+
+    if (input.Trad !== undefined && input.Adv !== undefined) {
+      const baseAdv = (input.Trad * (100 - rsPsSplit) + input.Adv * rsPsSplit) / 100;
+      const corp = context.CORP || 0;
+      const lng = context.Lng || 0;
+      return baseAdv + corp + lng;
+    }
+
+    return 0;
+  };
+
+  const applyEraPenalty = (score: number, playerEra: number): number => {
+    if (playerEra >= eraWeight) return score;
+    const diff = eraWeight - playerEra;
+    const penalty = score * (Math.log(diff + 1) / eraWeight);
+    return Math.max(0, score - penalty);
+  };
+
+    return (
+    <div className="p-6 max-w-3xl mx-auto space-y-8">
+      <h1 className="text-3xl font-bold">Build Your Model for the GOAT NBA Player</h1>
+
+      <section>
+        <img src="/era-banner.png" alt="Era Banner" className="mb-4 w-full rounded-lg" />
+        <h2 className="text-xl font-semibold">1. Choose Your Era</h2>
+        <p>Is everyone in the conversation, or should older eras be viewed less favorably?</p>
+       <Slider
+  value={[eraWeight]}
+  onValueChange={([v]) => setEraWeight(v)}
+  min={1.0}
+  max={7.0}
+  step={0.1}
+/>
+
+        <div className="mt-2 mb-4 flex justify-between text-sm">
+  <span>"Plumbers"</span>
+  <span className="font-bold">Era: {eraWeight.toFixed(1)}</span>
+  <span>"Ballers"</span>
+</div>
+      </section>
+
+      <section>
+        <h2 className="text-xl font-semibold">2. Evaluate Performance</h2>
+        <p className="text-sm text-muted-foreground">
+          This is purely a measure of a player’s production and ability to increase the chances of winning. A win or an MVP does not influence the evaluation of a player’s performance. We don’t have the luxury of the “eye test” in this statistical assessment, so choose which numbers you want to consider.
+        </p>
+        <p>Regular Season vs. Postseason</p>
+        <Slider value={[rsPsSplit]} onValueChange={([v]) => setRsPsSplit(v)} {...SLIDER_PROPS} />
+        <div className="mt-2 mb-4 flex justify-between text-sm">
+  <span>Regular Season</span>
+  <span className="font-semibold">{100 - rsPsSplit}% / {rsPsSplit}%</span>
+  <span>Postseason</span>
+</div>
+
+        <p className="mt-4">Traditional Box Score vs. Advanced Statistics</p>
+        <Slider value={[tradAdvSplit]} onValueChange={([v]) => setTradAdvSplit(v)} {...SLIDER_PROPS} />
+        <div className="mt-2 mb-4 flex justify-between text-sm">
+  <span>Traditional</span>
+  <span className="font-semibold">{100 - tradAdvSplit}% / {tradAdvSplit}%</span>
+  <span>Advanced</span>
+</div>
+      </section>
+
+      <section>
+        <h2 className="text-xl font-semibold">3. Build Your Model</h2>
+        <p>Distribute 100 points across the following criteria:</p>
+        <div className="space-y-4">
+          {CRITERIA.map((label, i) => (
+            <div key={i}>
+              <label className="block font-medium mb-1">{label}: {Math.round(weights[i])}</label>
+              <Slider
+                value={[weights[i]]}
+                onValueChange={([v]) => handleSliderChange(i, v)}
+                {...SLIDER_PROPS}
+              />
+            </div>
+          ))}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </section>
     </div>
   );
 }
